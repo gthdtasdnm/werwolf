@@ -312,6 +312,9 @@ body.istnacht { background: radial-gradient(1200px 800px at 50% -10%, #0d1030, #
   border-radius: var(--r); padding: 12px;
 }
 .erzaehler p { margin: 4px 0; }
+/* Der Bericht der letzten Nacht steht auf dem Endstand ueber dem Sieger. */
+#finalSub p { margin: 3px 0; }
+.final-sieg { color: var(--ink); font-weight: 700; margin-top: 8px !important; }
 .aufgabe { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
 .auf-kopf { font-weight: 700; margin: 0 0 8px; }
 .auf-txt { color: var(--muted); font-size: 13px; margin: 8px 0 0; }

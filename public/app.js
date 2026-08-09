@@ -1,6 +1,6 @@
 // NACHTWACHE – Client. Jeder sieht nur, was seine Rolle sehen darf; was das
 // ist, entscheidet der Server – hier wird nur gezeichnet, was ankommt.
-import { $, el, S, schicke, starteSchale, zeige } from "./schale.js";
+import { $, binHost, el, S, schicke, starteSchale, zeige } from "./schale.js";
 
 const HILFE = [
   "<b>Der Server ist der Erzähler.</b> Er teilt die Rollen aus und sagt, wer nachts dran ist.",
@@ -159,6 +159,31 @@ function zeichneSpiel(m) {
   $("rundenHint").textContent = m.lebe ? "" : "Du bist tot – zuschauen und schweigen.";
 }
 
+/**
+ * Der Endstand mit dem Bericht der letzten Nacht davor.
+ *
+ * Ohne den Bericht endet die Partie mit einem Satz („Das Dorf gewinnt"), und
+ * wer in der letzten Nacht gestorben ist – und ob am Gift, am Rudel oder am
+ * Liebeskummer – erführe niemand mehr: der Sieg überspringt den Morgen.
+ */
+function zeichneFinal(m) {
+  zeige("final");
+  const sub = $("finalSub");
+  sub.innerHTML = "";
+  for (const t of m.meldungen ?? []) sub.append(el("p", null, t));
+  sub.append(el("p", "final-sieg", m.untertitel ?? ""));
+
+  const ol = $("podium");
+  ol.innerHTML = "";
+  for (const z of m.tabelle ?? []) {
+    const li = el("li");
+    li.append(el("span", "pd-name", z.name));
+    li.append(el("span", "pd-pt", String(z.wert ?? z.punkte ?? "")));
+    ol.append(li);
+  }
+  $("againBtn").hidden = !binHost();
+}
+
 $("helpList").innerHTML = HILFE.map((h) => `<li>${h}</li>`).join("");
 
 const extra = $("hostExtra");
@@ -181,6 +206,7 @@ for (const b of extra.querySelectorAll("[data-amor]")) {
 starteSchale({
   key: "werwolf",
   zeichneSpiel,
+  zeichneFinal,
   zeichneRaum: (r) => {
     for (const b of extra.querySelectorAll("[data-hexe]")) {
       b.classList.toggle("sel", (b.dataset.hexe === "1") === !!r.settings.hexe);

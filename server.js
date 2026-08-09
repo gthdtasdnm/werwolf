@@ -209,7 +209,7 @@ function morgen(room) {
 
   room.meldungen = meldungen;
   room.ergebnis = { art: "nacht", tote: tote.map((id) => name(room, id)) };
-  if (pruefeEnde(room)) return;
+  if (pruefeEnde(room, meldungen)) return;
   setzeSchritt(room, "morgen", KURZ_MS);
 }
 
@@ -252,22 +252,28 @@ function werteWahlAus(room) {
     tote: ziel ? [name(room, ziel)] : [],
     stimmen: [...room.stimmen].map(([w, z]) => `${name(room, w)} → ${name(room, z)}`),
   };
-  if (pruefeEnde(room)) return;
+  if (pruefeEnde(room, meldungen)) return;
   setzeSchritt(room, "abend", KURZ_MS);
 }
 
-/** Gewonnen hat, wer allein übrig ist – oder das Liebespaar zu zweit. */
-function pruefeEnde(room) {
+/**
+ * Gewonnen hat, wer allein übrig ist – oder das Liebespaar zu zweit.
+ *
+ * `meldungen` sind die Todesnachrichten, die zu diesem Ende geführt haben. Sie
+ * müssen mit an den Endstand: mit dem Sieg wird der Morgen übersprungen, und
+ * ohne sie erführe niemand, wer in der letzten Nacht gestorben ist und warum.
+ */
+function pruefeEnde(room, meldungen = []) {
   const leben = lebende(room);
   const w = leben.filter((p) => p.rolle === "wolf").length;
   const rest = leben.length - w;
 
   const paar = leben.filter((p) => p.liebe);
   if (paar.length === 2 && leben.length === 2) {
-    return finishGame(room, "liebe", "Das Liebespaar bleibt übrig – die beiden gewinnen zusammen.");
+    return finishGame(room, "liebe", "Das Liebespaar bleibt übrig – die beiden gewinnen zusammen.", meldungen);
   }
-  if (w === 0) return finishGame(room, "dorf", "Kein Werwolf mehr am Leben. Das Dorf gewinnt.");
-  if (w >= rest) return finishGame(room, "wolf", "Die Werwölfe sind in der Überzahl. Sie gewinnen.");
+  if (w === 0) return finishGame(room, "dorf", "Kein Werwolf mehr am Leben. Das Dorf gewinnt.", meldungen);
+  if (w >= rest) return finishGame(room, "wolf", "Die Werwölfe sind in der Überzahl. Sie gewinnen.", meldungen);
   return false;
 }
 
@@ -362,7 +368,7 @@ function pushRunde(room, nurAn) {
   }
 }
 
-function finishGame(room, sieger, text) {
+function finishGame(room, sieger, text, meldungen = []) {
   clearTimers(room);
   room.phase = "final";
   room.schritt = "ende";
@@ -377,7 +383,7 @@ function finishGame(room, sieger, text) {
     }))
     .sort((a, b) => b.punkte - a.punkte);
   for (const p of room.players.values()) p.ready = false;
-  broadcast(room, { t: "final", tabelle, untertitel: text });
+  broadcast(room, { t: "final", tabelle, untertitel: text, meldungen });
   pushState(room);
   pushRoomList();
   return true;
