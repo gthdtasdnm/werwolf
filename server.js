@@ -205,7 +205,7 @@ function morgen(room) {
 
   const meldungen = [];
   for (const id of tote) toeten(room, id, meldungen, "nacht");
-  if (!tote.length) meldungen.unshift("Diese Nacht ist niemand gestorben.");
+  if (!tote.length) meldungen.unshift({ text: "Diese Nacht ist niemand gestorben.", k: "ww.niemandTot" });
 
   room.meldungen = meldungen;
   room.ergebnis = { art: "nacht", tote: tote.map((id) => name(room, id)) };
@@ -222,16 +222,31 @@ function toeten(room, id, meldungen, art) {
   const p = room.players.get(id);
   if (!p || !p.lebt) return;
   p.lebt = false;
+  // Satz und Schluessel, dazu die Rolle in ihrer Kurzform (`rk`): den
+  // Rollennamen setzt der Client in seiner Sprache ein, der Server kennt sie
+  // nicht - am selben Tisch hat jeder eine andere eingestellt.
   meldungen.push(
     art === "nacht"
-      ? `${p.name} hat die Nacht nicht überlebt. Rolle: ${rollenName(p.rolle)}.`
-      : `${p.name} wurde vom Dorf verurteilt. Rolle: ${rollenName(p.rolle)}.`,
+      ? {
+        text: `${p.name} hat die Nacht nicht überlebt. Rolle: ${rollenName(p.rolle)}.`,
+        k: "ww.totNacht",
+        w: { name: p.name, rolle: rollenName(p.rolle), rk: p.rolle },
+      }
+      : {
+        text: `${p.name} wurde vom Dorf verurteilt. Rolle: ${rollenName(p.rolle)}.`,
+        k: "ww.totTag",
+        w: { name: p.name, rolle: rollenName(p.rolle), rk: p.rolle },
+      },
   );
   if (p.liebe) {
     const l = room.players.get(p.liebe);
     if (l?.lebt) {
       l.lebt = false;
-      meldungen.push(`${l.name} stirbt aus Liebeskummer. Rolle: ${rollenName(l.rolle)}.`);
+      meldungen.push({
+        text: `${l.name} stirbt aus Liebeskummer. Rolle: ${rollenName(l.rolle)}.`,
+        k: "ww.liebeskummer",
+        w: { name: l.name, rolle: rollenName(l.rolle), rk: l.rolle },
+      });
     }
   }
 }
@@ -245,7 +260,7 @@ function werteWahlAus(room) {
   const ziel = room.stimmen.size ? mehrheit(room.stimmen) : null;
   const meldungen = [];
   if (ziel) toeten(room, ziel, meldungen, "tag");
-  else meldungen.push("Das Dorf konnte sich nicht einigen. Niemand stirbt.");
+  else meldungen.push({ text: "Das Dorf konnte sich nicht einigen. Niemand stirbt.", k: "ww.keineEinigung" });
   room.meldungen = meldungen;
   room.ergebnis = {
     art: "tag",
@@ -270,10 +285,23 @@ function pruefeEnde(room, meldungen = []) {
 
   const paar = leben.filter((p) => p.liebe);
   if (paar.length === 2 && leben.length === 2) {
-    return finishGame(room, "liebe", "Das Liebespaar bleibt übrig – die beiden gewinnen zusammen.", meldungen);
+    return finishGame(room, "liebe", {
+      text: "Das Liebespaar bleibt übrig – die beiden gewinnen zusammen.",
+      k: "ww.siegLiebe",
+    }, meldungen);
   }
-  if (w === 0) return finishGame(room, "dorf", "Kein Werwolf mehr am Leben. Das Dorf gewinnt.", meldungen);
-  if (w >= rest) return finishGame(room, "wolf", "Die Werwölfe sind in der Überzahl. Sie gewinnen.", meldungen);
+  if (w === 0) {
+    return finishGame(room, "dorf", {
+      text: "Kein Werwolf mehr am Leben. Das Dorf gewinnt.",
+      k: "ww.siegDorf",
+    }, meldungen);
+  }
+  if (w >= rest) {
+    return finishGame(room, "wolf", {
+      text: "Die Werwölfe sind in der Überzahl. Sie gewinnen.",
+      k: "ww.siegWolf",
+    }, meldungen);
+  }
   return false;
 }
 
@@ -310,6 +338,7 @@ function pushRunde(room, nurAn) {
       id: p.id, name: p.name, lebt: p.lebt, weg: !p.connected,
       // Die Rolle wird erst nach dem Tod öffentlich.
       rolle: p.lebt ? null : rollenName(p.rolle),
+      rolleK: p.lebt ? null : p.rolle,
     }));
 
   const ziel = nurAn ? [nurAn] : [...room.players.values()];
@@ -378,7 +407,11 @@ function finishGame(room, sieger, text, meldungen = []) {
     .filter((p) => p.rolle)
     .map((p) => ({
       name: p.name,
-      wert: `${rollenName(p.rolle)}${gewinnt(p) ? " · gewonnen" : ""}`,
+      wert: {
+        text: `${rollenName(p.rolle)}${gewinnt(p) ? " · gewonnen" : ""}`,
+        k: gewinnt(p) ? "ww.wertGewonnen" : "ww.wert",
+        w: { rolle: rollenName(p.rolle), rk: p.rolle },
+      },
       punkte: gewinnt(p) ? 1 : 0,
     }))
     .sort((a, b) => b.punkte - a.punkte);

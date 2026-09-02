@@ -1,15 +1,39 @@
 // NACHTWACHE – Client. Jeder sieht nur, was seine Rolle sehen darf; was das
 // ist, entscheidet der Server – hier wird nur gezeichnet, was ankommt.
 import { $, binHost, el, S, schicke, starteSchale, zeige } from "./schale.js";
+import { starteSprache, t, uebersetze } from "./sprache.js";
+import { WOERTER } from "./texte.js";
+
+starteSprache(WOERTER);
+
+/**
+ * Eine Meldung des Erzählers. Sie kommt vom Server mit Schlüssel, und in `w.rk`
+ * steckt die Rolle in ihrer Kurzform – erst hier wird daraus ein Rollenname in
+ * der Sprache, die dieser Mensch eingestellt hat.
+ */
+const erzaehler = (x) => {
+  if (x == null) return "";
+  if (typeof x === "string") return x;
+  const w = { ...(x.w ?? {}) };
+  if (w.rk) w.rolle = t("ww.rolle." + w.rk, {}, w.rolle ?? "");
+  return t(x.k, w, x.text ?? "");
+};
+
+const rollenName = (kurz, deutsch) =>
+  kurz ? t("ww.rolle." + kurz, {}, deutsch ?? "") : (deutsch ?? "");
 
 const HILFE = [
-  "<b>Der Server ist der Erzähler.</b> Er teilt die Rollen aus und sagt, wer nachts dran ist.",
-  "<b>Nachts</b> wachen die Werwölfe auf und einigen sich auf ein Opfer. Danach die Seherin (sie prüft eine Person) und die Hexe (sie kann einmal heilen und einmal vergiften).",
-  "<b>Amor</b> verkuppelt in der ersten Nacht zwei Leute. Stirbt einer, stirbt der andere aus Liebeskummer.",
-  "<b>Tagsüber wird geredet</b> – laut, im Raum, nicht im Handy. Danach stimmen alle ab, wer verdächtig ist.",
-  "<b>Das Dorf gewinnt</b>, wenn kein Werwolf mehr lebt. Die Wölfe gewinnen, wenn sie in der Überzahl sind.",
-  "<b>Tote schauen zu</b> und dürfen nichts mehr verraten. Ihre Rolle wird aufgedeckt.",
+  ["ww.h1", "<b>Der Server ist der Erzähler.</b> Er teilt die Rollen aus und sagt, wer nachts dran ist."],
+  ["ww.h2", "<b>Nachts</b> wachen die Werwölfe auf und einigen sich auf ein Opfer. Danach die Seherin (sie prüft eine Person) und die Hexe (sie kann einmal heilen und einmal vergiften)."],
+  ["ww.h3", "<b>Amor</b> verkuppelt in der ersten Nacht zwei Leute. Stirbt einer, stirbt der andere aus Liebeskummer."],
+  ["ww.h4", "<b>Tagsüber wird geredet</b> – laut, im Raum, nicht im Handy. Danach stimmen alle ab, wer verdächtig ist."],
+  ["ww.h5", "<b>Das Dorf gewinnt</b>, wenn kein Werwolf mehr lebt. Die Wölfe gewinnen, wenn sie in der Überzahl sind."],
+  ["ww.h6", "<b>Tote schauen zu</b> und dürfen nichts mehr verraten. Ihre Rolle wird aufgedeckt."],
 ];
+
+const zeichneHilfe = () => {
+  $("helpList").innerHTML = HILFE.map(([k, d]) => `<li>${t(k, {}, d)}</li>`).join("");
+};
 
 const ROLLENTEXT = {
   wolf: "Du jagst nachts mit dem Rudel. Am Tag bist du der harmloseste Mensch im Dorf.",
@@ -46,11 +70,15 @@ function zeichneSpiel(m) {
   const nacht = ["amor", "wolf", "seher", "hexe"].includes(m.schritt);
   document.body.classList.toggle("istnacht", nacht);
 
-  $("tbLinks").innerHTML = `Nacht <strong>${m.nacht}</strong> <span id="uhr"></span>`;
-  $("tbTag").textContent = {
+  $("tbLinks").innerHTML =
+    `${t("ww.nacht", {}, "Nacht")} <strong>${m.nacht}</strong> <span id="uhr"></span>`;
+  const SCHRITT = {
     rollen: "Rollen", amor: "Amor", wolf: "Werwölfe", seher: "Seherin", hexe: "Hexe",
     morgen: "Morgen", tag: "Tag", abend: "Abend", wahl: "Abstimmung", ende: "Ende",
-  }[m.schritt] ?? m.schritt;
+  };
+  $("tbTag").textContent = SCHRITT[m.schritt]
+    ? t("ww.schritt." + m.schritt, {}, SCHRITT[m.schritt])
+    : m.schritt;
   uhr();
 
   const b = $("buehne");
@@ -59,36 +87,44 @@ function zeichneSpiel(m) {
   // Rollenkarte
   if (m.schritt === "rollen") {
     const k = el("div", "rollenkarte " + m.rolleKurz);
-    k.append(el("p", "rk-klein", "Deine Rolle"));
-    k.append(el("h2", "rk-name", m.meineRolle ?? "Zuschauer"));
-    k.append(el("p", "rk-text", ROLLENTEXT[m.rolleKurz] ?? "Du schaust zu."));
+    k.append(el("p", "rk-klein", t("ww.deineRolle", {}, "Deine Rolle")));
+    k.append(el("h2", "rk-name",
+      rollenName(m.rolleKurz, m.meineRolle) || t("ww.zuschauer", {}, "Zuschauer")));
+    k.append(el("p", "rk-text", m.rolleKurz
+      ? t("ww.rollentext." + m.rolleKurz, {}, ROLLENTEXT[m.rolleKurz] ?? "")
+      : t("ww.schaustZu", {}, "Du schaust zu.")));
     b.append(k);
-    const ok = el("button", "btn primary big", "Habe ich gesehen");
+    const ok = el("button", "btn primary big", t("ww.gesehen", {}, "Habe ich gesehen"));
     ok.onclick = () => { schicke({ t: "gesehen" }); ok.disabled = true; };
     b.append(ok);
-    $("rundenHint").textContent = "Alle bestätigen, dann wird es Nacht.";
+    $("rundenHint").textContent =
+      t("ww.alleBestaetigen", {}, "Alle bestätigen, dann wird es Nacht.");
     return;
   }
 
   // Meldungen des Erzählers
   if (m.meldungen?.length && ["morgen", "abend", "tag", "wahl"].includes(m.schritt)) {
     const box = el("div", "erzaehler");
-    for (const t of m.meldungen) box.append(el("p", null, t));
+    for (const meldung of m.meldungen) box.append(el("p", null, erzaehler(meldung)));
     b.append(box);
   }
 
   // Eigene Rolle als Streifen
   const streifen = el("div", "meinerolle");
-  streifen.append(el("span", "mr-name", m.meineRolle ?? "Zuschauer"));
+  streifen.append(el("span", "mr-name",
+    rollenName(m.rolleKurz, m.meineRolle) || t("ww.zuschauer", {}, "Zuschauer")));
   if (m.liebe) streifen.append(el("span", "mr-liebe", "💘 " + m.liebe));
-  if (!m.lebe) streifen.append(el("span", "mr-tot", "tot"));
+  if (!m.lebe) streifen.append(el("span", "mr-tot", t("ww.tot", {}, "tot")));
   b.append(streifen);
-  if (m.sehErgebnis) b.append(el("div", "seherbox", "Gesehen – " + m.sehErgebnis));
+  if (m.sehErgebnis) {
+    b.append(el("div", "seherbox",
+      t("ww.gesehenErgebnis", { was: m.sehErgebnis }, "Gesehen – " + m.sehErgebnis)));
+  }
 
   // Aufgabe
   const auf = el("div", "aufgabe");
   if (m.aufgabe === "amor") {
-    auf.append(el("p", "auf-kopf", "Wähle zwei Personen, die sich verlieben."));
+    auf.append(el("p", "auf-kopf", t("ww.amorKopf", {}, "Wähle zwei Personen, die sich verlieben.")));
     auf.append(wahlGitter(m.wahl, (w) => {
       if (amorWahl.includes(w.id)) amorWahl = amorWahl.filter((x) => x !== w.id);
       else if (amorWahl.length < 2) amorWahl.push(w.id);
@@ -100,40 +136,48 @@ function zeichneSpiel(m) {
       if (w && amorWahl.includes(w.id)) btn.classList.add("on");
     }
   } else if (m.aufgabe === "wolf") {
-    auf.append(el("p", "auf-kopf", "Rudel: " + m.zusatz.rudel.join(", ")));
-    auf.append(el("p", "auf-txt", "Einigt euch auf ein Opfer."));
+    auf.append(el("p", "auf-kopf",
+      t("ww.rudel", { namen: m.zusatz.rudel.join(", ") }, "Rudel: " + m.zusatz.rudel.join(", "))));
+    auf.append(el("p", "auf-txt", t("ww.opferWaehlen", {}, "Einigt euch auf ein Opfer.")));
     auf.append(wahlGitter(m.wahl, (w) => schicke({ t: "wolf", ziel: w.id }), m.zusatz.gewaehlt));
     if (m.zusatz.stand.length) auf.append(el("p", "auf-txt", m.zusatz.stand.join(" · ")));
   } else if (m.aufgabe === "seher") {
-    auf.append(el("p", "auf-kopf", "Wen prüfst du heute Nacht?"));
+    auf.append(el("p", "auf-kopf", t("ww.seherKopf", {}, "Wen prüfst du heute Nacht?")));
     auf.append(wahlGitter(m.wahl, (w) => schicke({ t: "seher", ziel: w.id }), null));
   } else if (m.aufgabe === "hexe") {
     const z = m.zusatz;
-    auf.append(el("p", "auf-kopf", z.opfer ? `Das Opfer der Nacht: ${z.opfer}` : "Diese Nacht gibt es kein Opfer."));
+    auf.append(el("p", "auf-kopf", z.opfer
+      ? t("ww.opferIst", { name: z.opfer }, `Das Opfer der Nacht: ${z.opfer}`)
+      : t("ww.keinOpfer", {}, "Diese Nacht gibt es kein Opfer.")));
     const reihe = el("div", "row gap");
     if (z.heil && z.opferId) {
-      const h = el("button", "btn primary", "Heilen");
+      const h = el("button", "btn primary", t("ww.heilen", {}, "Heilen"));
       h.onclick = () => schicke({ t: "hexe", heilen: true });
       reihe.append(h);
     }
-    const w = el("button", "btn ghost", "Nichts tun");
+    const w = el("button", "btn ghost", t("ww.nichtsTun", {}, "Nichts tun"));
     w.onclick = () => schicke({ t: "hexe" });
     reihe.append(w);
     auf.append(reihe);
     if (z.gift) {
-      auf.append(el("p", "auf-txt", "Oder das Gift benutzen (einmal pro Partie):"));
+      auf.append(el("p", "auf-txt", t("ww.gift", {}, "Oder das Gift benutzen (einmal pro Partie):")));
       auf.append(wahlGitter(m.wahl, (x) => schicke({ t: "hexe", gift: x.id }), null));
     }
   } else if (m.aufgabe === "wahl") {
-    auf.append(el("p", "auf-kopf", "Wer soll hängen?"));
+    auf.append(el("p", "auf-kopf", t("ww.werHaengt", {}, "Wer soll hängen?")));
     auf.append(wahlGitter(m.wahl, (w) => schicke({ t: "wahl", ziel: w.id }), m.zusatz.gewaehlt));
-    auf.append(el("p", "auf-txt", `${m.zusatz.ab}/${m.zusatz.von} haben abgestimmt.`));
+    auf.append(el("p", "auf-txt", t(
+      "ww.abgestimmt",
+      { ab: m.zusatz.ab, von: m.zusatz.von },
+      `${m.zusatz.ab}/${m.zusatz.von} haben abgestimmt.`,
+    )));
   } else if (m.schritt === "tag") {
-    auf.append(el("p", "auf-kopf", "Redet."));
-    auf.append(el("p", "auf-txt", "Wer war es? Der Host schaltet zur Abstimmung."));
+    auf.append(el("p", "auf-kopf", t("ww.redet", {}, "Redet.")));
+    auf.append(el("p", "auf-txt",
+      t("ww.redetTxt", {}, "Wer war es? Der Host schaltet zur Abstimmung.")));
   } else if (["amor", "wolf", "seher", "hexe"].includes(m.schritt)) {
-    auf.append(el("p", "auf-kopf", "Alle schlafen …"));
-    auf.append(el("p", "auf-txt", "Handy weglegen und nichts sagen."));
+    auf.append(el("p", "auf-kopf", t("ww.schlafen", {}, "Alle schlafen …")));
+    auf.append(el("p", "auf-txt", t("ww.schlafenTxt", {}, "Handy weglegen und nichts sagen.")));
   }
   if (auf.childNodes.length) b.append(auf);
 
@@ -142,7 +186,10 @@ function zeichneSpiel(m) {
   for (const p of m.spieler) {
     const d = el("div", "dp" + (p.lebt ? "" : " tot"));
     d.append(el("span", "dp-nm", p.name));
-    d.append(el("span", "dp-rl", p.lebt ? (p.weg ? "weg" : "lebt") : (p.rolle ?? "tot")));
+    d.append(el("span", "dp-rl",
+      p.lebt
+        ? (p.weg ? t("ww.weg", {}, "weg") : t("ww.lebt", {}, "lebt"))
+        : (rollenName(p.rolleK, p.rolle) || t("ww.tot", {}, "tot"))));
     liste.append(d);
   }
   b.append(liste);
@@ -152,11 +199,17 @@ function zeichneSpiel(m) {
   akt.innerHTML = "";
   if (m.host && ["morgen", "abend", "tag"].includes(m.schritt)) {
     const w = el("button", "btn primary big",
-      m.schritt === "tag" ? "Zur Abstimmung" : m.schritt === "abend" ? "Nächste Nacht" : "Weiter");
+      m.schritt === "tag"
+        ? t("ww.zurWahl", {}, "Zur Abstimmung")
+        : m.schritt === "abend"
+        ? t("ww.naechsteNacht", {}, "Nächste Nacht")
+        : t("ww.weiter", {}, "Weiter"));
     w.onclick = () => schicke({ t: "weiter" });
     akt.append(w);
   }
-  $("rundenHint").textContent = m.lebe ? "" : "Du bist tot – zuschauen und schweigen.";
+  $("rundenHint").textContent = m.lebe
+    ? ""
+    : t("ww.bistTot", {}, "Du bist tot – zuschauen und schweigen.");
 }
 
 /**
@@ -170,32 +223,34 @@ function zeichneFinal(m) {
   zeige("final");
   const sub = $("finalSub");
   sub.innerHTML = "";
-  for (const t of m.meldungen ?? []) sub.append(el("p", null, t));
-  sub.append(el("p", "final-sieg", m.untertitel ?? ""));
+  for (const meldung of m.meldungen ?? []) sub.append(el("p", null, erzaehler(meldung)));
+  sub.append(el("p", "final-sieg", erzaehler(m.untertitel)));
 
   const ol = $("podium");
   ol.innerHTML = "";
   for (const z of m.tabelle ?? []) {
     const li = el("li");
     li.append(el("span", "pd-name", z.name));
-    li.append(el("span", "pd-pt", String(z.wert ?? z.punkte ?? "")));
+    li.append(el("span", "pd-pt", erzaehler(z.wert) || String(z.punkte ?? "")));
     ol.append(li);
   }
   $("againBtn").hidden = !binHost();
 }
 
-$("helpList").innerHTML = HILFE.map((h) => `<li>${h}</li>`).join("");
+zeichneHilfe();
 
 const extra = $("hostExtra");
 extra.innerHTML = `
-  <div class="setting"><span class="setting-label">Hexe</span>
+  <div class="setting"><span class="setting-label" data-t="ww.rolle.hexe">Hexe</span>
     <div class="segmented">
-      <button class="seg" data-hexe="1">dabei</button><button class="seg" data-hexe="0">ohne</button>
+      <button class="seg" data-hexe="1" data-t="ww.dabei">dabei</button><button class="seg" data-hexe="0" data-t="ww.ohne">ohne</button>
     </div></div>
-  <div class="setting"><span class="setting-label">Amor</span>
+  <div class="setting"><span class="setting-label" data-t="ww.rolle.amor">Amor</span>
     <div class="segmented">
-      <button class="seg" data-amor="1">dabei</button><button class="seg" data-amor="0">ohne</button>
+      <button class="seg" data-amor="1" data-t="ww.dabei">dabei</button><button class="seg" data-amor="0" data-t="ww.ohne">ohne</button>
     </div></div>`;
+uebersetze(extra);
+document.addEventListener("sprachwechsel", zeichneHilfe);
 for (const b of extra.querySelectorAll("[data-hexe]")) {
   b.onclick = () => schicke({ t: "settings", hexe: b.dataset.hexe === "1" });
 }

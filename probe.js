@@ -178,10 +178,10 @@ console.log(`ok  nur die Hexe erfährt in der Nacht, dass es ${D1.name} getroffe
 
 H.send({ t: "hexe", heilen: true });
 await bis(() => erster.runde.schritt === "morgen", "Morgen");
-muss(erster.runde.meldungen.some((m) => /niemand gestorben/i.test(m)),
+muss(erster.runde.meldungen.some((m) => /niemand gestorben/i.test(m?.text ?? m)),
   "Trotz Heiltrank ist jemand gestorben: " + JSON.stringify(erster.runde.meldungen));
 muss(erster.runde.spieler.every((s) => s.lebt), "Es lebt nicht mehr jeder");
-console.log("ok  der Heiltrank hat gewirkt: „" + erster.runde.meldungen[0] + "“");
+console.log("ok  der Heiltrank hat gewirkt: „" + erster.runde.meldungen[0].text + "“");
 
 // --- Tag 1: reden und wählen ------------------------------------------------
 
@@ -249,11 +249,11 @@ await bis(() => erster.final, "Endstand");
 // Der Bericht muss am Endstand hängen, nicht am letzten Rundenzustand: mit dem
 // Sieg wird der Morgen übersprungen, eine weitere `runde` kommt nie.
 const meldungen = erster.final.meldungen ?? [];
-console.log("  " + meldungen.join("\n  "));
-muss(meldungen.some((m) => m.startsWith(D1.name)), `${D1.name} fehlt in den Meldungen`);
-muss(meldungen.some((m) => m.startsWith(D2.name) && /Liebeskummer/.test(m)),
+console.log("  " + meldungen.map((m) => m.text ?? m).join("\n  "));
+muss(meldungen.some((m) => (m.text ?? m).startsWith(D1.name)), `${D1.name} fehlt in den Meldungen`);
+muss(meldungen.some((m) => (m.text ?? m).startsWith(D2.name) && /Liebeskummer/.test(m.text ?? m)),
   `${D2.name} stirbt nicht an Liebeskummer`);
-muss(meldungen.some((m) => m.startsWith(W.name)), "Der vergiftete Wolf fehlt in den Meldungen");
+muss(meldungen.some((m) => (m.text ?? m).startsWith(W.name)), "Der vergiftete Wolf fehlt in den Meldungen");
 for (const c of alleC.filter((x) => x !== D3)) {
   muss((c.final?.meldungen ?? []).length === meldungen.length,
     `${c.name} bekommt den Bericht der letzten Nacht nicht`);
@@ -263,17 +263,17 @@ console.log("ok  Opfer, Liebeskummer und Gift stehen bei allen im Schlussbericht
 // --- Endstand ---------------------------------------------------------------
 
 const f = erster.final;
-muss(/Dorf gewinnt/.test(f.untertitel), "Falscher Sieger: " + f.untertitel);
+muss(/Dorf gewinnt/.test(f.untertitel?.text ?? ""), "Falscher Sieger: " + JSON.stringify(f.untertitel));
 muss(f.tabelle.length === 6, "Der Endstand hat nicht sechs Zeilen (Gil ist raus)");
 const wolfZeile = f.tabelle.find((z) => z.name === W.name);
 muss(wolfZeile.punkte === 0, "Der Wolf hat gewonnen, obwohl das Dorf gewinnt");
-muss(!/gewonnen/.test(wolfZeile.wert), `Beim Wolf steht „gewonnen“`);
+muss(!/gewonnen/.test(wolfZeile.wert?.text ?? ""), `Beim Wolf steht „gewonnen“`);
 muss(f.tabelle.filter((z) => z.punkte === 1).length === 5, "Es haben nicht fünf gewonnen");
 for (let i = 1; i < f.tabelle.length; i++) {
   muss(f.tabelle[i - 1].punkte >= f.tabelle[i].punkte, "Der Endstand ist nicht sortiert");
 }
-console.log("\nEndstand: " + f.untertitel);
-for (const z of f.tabelle) console.log(`  ${z.name.padEnd(6)} ${z.wert}`);
+console.log("\nEndstand: " + f.untertitel.text);
+for (const z of f.tabelle) console.log(`  ${z.name.padEnd(6)} ${z.wert.text}`);
 console.log("ok  Endstand vollständig, sortiert, jede Rolle offen");
 
 erster.send({ t: "again" });
